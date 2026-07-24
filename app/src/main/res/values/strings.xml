@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Naomi</string>
+    <string name="accessibility_description">Lets Naomi tap the Send button so it can send WhatsApp messages for you automatically.</string>
+</resources>

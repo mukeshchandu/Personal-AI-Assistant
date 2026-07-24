@@ -1,20 +1,77 @@
-# Naomi — a personal voice assistant
+# Naomi — a personal voice assistant for Android
 
-A hybrid Android ("Jarvis"-style) voice assistant, offline-first with a cloud brain when needed.
+A hands-free, offline-first ("Jarvis"-style) voice assistant. Say **"Naomi"** and ask it to set a
+timer, call someone, message on WhatsApp, play music, open apps, check the weather, and more — most
+of it works with no internet. When you need a real answer it uses a cloud brain (Groq), and it can
+even fall back to a fully on-device LLM.
 
-- **Offline-first:** timers, alarms, time/date, calls, messages, music, maps, torch, Wi-Fi/Bluetooth,
-  calendar, and "open \<app\>" work with no internet — handled by the on-device keyword router.
-- **Cloud-smart:** anything else is parsed into an action or answered by the **Groq API** (with a
-  Gemini fallback), and a fully-offline on-device **Gemma** brain backs it up when there's no network.
-- **Hands-free:** an offline **"Naomi" wake word** (Vosk) launches it from the lock screen, and it
-  holds **multi-turn conversations** — when it asks a question, the mic reopens for your answer.
-- **Voice in / voice out:** Android `SpeechRecognizer` (ears) + `TextToSpeech` (mouth).
+- **Offline-first:** timers, alarms, time/date, calls, WhatsApp voice/video calls, SMS & WhatsApp
+  messages, music, maps/navigation, rides, food, notes, torch, Wi-Fi/Bluetooth, volume, calendar,
+  and "open \<app\>" — all handled on-device by the keyword router.
+- **Cloud-smart:** anything else is parsed into an action or answered by the **Groq API** (optional,
+  free key), with a Gemini fallback.
+- **Hands-free:** an offline **"Naomi" wake word** (Vosk) launches it from the lock screen.
+- **Multi-turn:** when it asks a question, the mic reopens for your answer.
 
 ```
 "Naomi" / tap 🎤 → SpeechRecognizer → AssistantBrain ┬─ CommandRouter  (offline actions)
                                                       ├─ Groq / Gemini  (cloud intent + chat)
                                                       └─ LocalBrain      (offline Gemma)  → TextToSpeech 🔊
 ```
+
+---
+
+## 📲 Just want to try it? (no build needed)
+
+Download the latest **`app-debug.apk`** from the [**Releases**](../../releases) page and install it on
+an Android phone (Android 8.0+). You'll need to allow "install from unknown sources".
+
+> The published APK has **cloud features off** (it ships with no API key). Offline commands, the
+> "Naomi" wake word, and the on-device brain all work. To enable the smart/cloud brain, build from
+> source with your own free Groq key (below).
+
+---
+
+## 🛠 Build from source
+
+**Requirements:** Android Studio (latest), a phone with Android 8.0+ (API 26) and USB debugging on.
+
+```bash
+git clone https://github.com/mukeshchandu/Personal-AI-Assistant.git
+cd Personal-AI-Assistant
+```
+
+Open the folder in Android Studio and press **Run ▶** (or `./gradlew :app:assembleDebug`).
+It builds and runs as-is — offline features work immediately.
+
+### Enable the cloud brain (optional)
+Get a free key at https://console.groq.com → "API Keys" (Gemini optional: https://aistudio.google.com).
+Create a `local.properties` file in the project root (it's git-ignored — never commit it):
+
+```
+sdk.dir=/path/to/your/Android/sdk
+GROQ_API_KEY=your_groq_key_here
+GEMINI_API_KEY=your_gemini_key_here
+```
+
+Rebuild, and turn on **Smart mode** in the app.
+
+---
+
+## First run
+
+Grant the mic (and, for calls/messages, contacts + phone) permissions. Then try:
+- "set a timer for 2 minutes"  *(offline)*
+- "call \<contact\>" / "WhatsApp video call \<contact\>"  *(offline)*
+- "what's the weather in Bangalore"
+- "play \<song\>"  •  "open settings"
+- Turn on the **"Naomi" wake word** and say "Naomi" from the lock screen.
+
+The wake word and voice models are bundled in `app/src/main/assets/` (Vosk + ONNX), so it works out
+of the box. The larger on-device chat model (Gemma) is optional and loaded from device storage
+separately.
+
+---
 
 ## Code map
 
@@ -33,89 +90,15 @@ See **[`FILES.md`](FILES.md)** for a one-line description of every source file. 
 
 ---
 
-## One-time setup
+## Notes & privacy
 
-### 1. Finish Android Studio's first launch
-When Android Studio opens, accept the defaults — it downloads the Android SDK and lets you
-create an emulator. (This GUI step can't be automated.)
+- Your API keys live only in `local.properties` (git-ignored) and are compiled into *your* build —
+  they're never in the source or the published APK.
+- The "Naomi" wake word runs fully on-device (Vosk); audio for wake detection isn't sent anywhere.
+- This is a personal/hobby project — the WhatsApp calling and accessibility features depend on those
+  apps' current layouts and may need tweaks over time.
 
-### 2. Create the project
-`New Project` → **Empty Activity** (the Compose one). Set:
-- **Name:** `Naomi`
-- **Package name:** `com.naomi.assistant`
-- **Minimum SDK:** API 26 (Android 8.0)
-- **Build language:** Kotlin DSL (`build.gradle.kts`)
-
-This generates a guaranteed-buildable skeleton on *your* machine (correct plugin/Kotlin
-versions for your install — which is why we don't hand-write them here).
-
-### 3. Drop in Naomi's code
-Replace the generated `app/src/main/java/com/naomi/assistant/` and `AndroidManifest.xml`
-with the files from this folder (same paths). Delete the auto-generated `ui/theme` files only
-if they cause conflicts — otherwise leave them.
-
-### 4. Add the dependencies
-In `app/build.gradle.kts`, inside `dependencies { }`:
-
-```kotlin
-implementation("com.squareup.okhttp3:okhttp:4.12.0")   // Gemini REST call
-implementation("androidx.activity:activity-compose:1.9.3")
-implementation(platform("androidx.compose:compose-bom:2024.10.00"))
-implementation("androidx.compose.material3:material3")
-implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
-implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
-```
-(Android Studio will flag newer versions — accept its suggestions.)
-
-Enable Compose + BuildConfig in the same file, inside `android { }`:
-
-```kotlin
-buildFeatures {
-    compose = true
-    buildConfig = true
-}
-```
-
-### 5. Add your API keys (never hard-code them)
-- **Groq** (primary cloud brain) — free key at https://console.groq.com → "API Keys".
-- **Gemini** (optional fallback) — free key at https://aistudio.google.com → "Get API key".
-
-In the project root `local.properties` (git-ignored — keep it private):
-```
-GROQ_API_KEY=your_groq_key_here
-GEMINI_API_KEY=your_gemini_key_here
-```
-
-Expose them to the app — in `app/build.gradle.kts`, inside `android { defaultConfig { } }`:
-```kotlin
-val props = project.rootProject.file("local.properties").let { f ->
-    if (f.exists()) java.util.Properties().apply { load(f.inputStream()) } else java.util.Properties()
-}
-buildConfigField("String", "GROQ_API_KEY",   "\"${props.getProperty("GROQ_API_KEY", "")}\"")
-buildConfigField("String", "GEMINI_API_KEY", "\"${props.getProperty("GEMINI_API_KEY", "")}\"")
-```
-
-### 6. Run
-Plug in an Android phone (USB debugging on) or start the emulator → press **Run ▶**.
-Grant the microphone prompt, tap **Talk**, and try:
-- "set a timer for 2 minutes"  *(offline)*
-- "what time is it"            *(offline)*
-- "open settings"             *(offline)*
-- "tell me a joke"            *(cloud → Gemini)*
-
----
-
-## Status
-
-Shipped since the first slice:
-- ✅ **"Naomi" wake word** — offline via Vosk, launches from lock/background.
-- ✅ **Background always-listening** — `WakeService` foreground mic service.
-- ✅ **Many more actions** — calls, WhatsApp voice/video calls, messages, music, maps, rides,
-  food, notes, email, torch, Wi-Fi/Bluetooth, calendar (all in `CommandRouter`).
-- ✅ **Multi-turn conversations** — a question reopens the mic; answers route through Groq with context.
-- ✅ **On-device brain** — Gemma 3 1B via MediaPipe for an offline fallback.
-
-Roadmap:
+## Roadmap
 1. **Per-voice wake** — finish tuning speaker verification (`SpeakerVerifier` / `VoiceEnrollment`).
-2. **Bigger on-device model** — Phi-3.5 / newer Gemma once it fits the 2 GB task limit.
+2. **Bigger on-device model** — Phi-3.5 / newer Gemma once it fits the task-model size limit.
 3. **True WhatsApp auto-send** — via the accessibility service, beyond pre-filled chats.

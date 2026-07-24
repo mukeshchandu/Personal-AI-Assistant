@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!--
+        Bold geometric N — violet→cyan gradient (matches Stitch design).
+        Path traces the N perimeter clockwise from top-left outer corner.
+        Diagonal goes from top-right of left bar (42,20) to bottom-left of right bar (69,88),
+        creating two parallel inner edges at the same slope (49/27 ≈ 1.81).
+    -->
+    <path android:pathData="M 30,20 L 30,88 L 43,88 L 43,39 L 70,88 L 82,88 L 82,20 L 69,20 L 69,69 L 42,20 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="30"
+                android:startY="88"
+                android:endX="82"
+                android:endY="20"
+                android:type="linear">
+                <item android:color="#FF5844D9" android:offset="0.0" />
+                <item android:color="#FF8D7FFF" android:offset="0.45" />
+                <item android:color="#FF00D9FF" android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+</vector>
