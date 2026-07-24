@@ -1,26 +1,35 @@
-# Naomi — voice assistant (first slice)
+# Naomi — a personal voice assistant
 
-A hybrid Android voice assistant:
+A hybrid Android ("Jarvis"-style) voice assistant, offline-first with a cloud brain when needed.
 
-- **Offline-first:** timers, alarms, time/date, and "open <app>" work with no internet and no API key.
-- **Cloud-smart:** anything else goes to the **Gemini API** for a real answer.
+- **Offline-first:** timers, alarms, time/date, calls, messages, music, maps, torch, Wi-Fi/Bluetooth,
+  calendar, and "open \<app\>" work with no internet — handled by the on-device keyword router.
+- **Cloud-smart:** anything else is parsed into an action or answered by the **Groq API** (with a
+  Gemini fallback), and a fully-offline on-device **Gemma** brain backs it up when there's no network.
+- **Hands-free:** an offline **"Naomi" wake word** (Vosk) launches it from the lock screen, and it
+  holds **multi-turn conversations** — when it asks a question, the mic reopens for your answer.
 - **Voice in / voice out:** Android `SpeechRecognizer` (ears) + `TextToSpeech` (mouth).
 
 ```
-Tap 🎤 → SpeechRecognizer → AssistantBrain ┬─ CommandRouter (offline)  → reply
-                                            └─ GeminiClient (cloud)     → reply → TextToSpeech 🔊
+"Naomi" / tap 🎤 → SpeechRecognizer → AssistantBrain ┬─ CommandRouter  (offline actions)
+                                                      ├─ Groq / Gemini  (cloud intent + chat)
+                                                      └─ LocalBrain      (offline Gemma)  → TextToSpeech 🔊
 ```
 
 ## Code map
 
+See **[`FILES.md`](FILES.md)** for a one-line description of every source file. The essentials:
+
 | File | Role |
 |------|------|
-| `MainActivity.kt`  | UI + wiring: mic button, permission, transcript |
-| `VoiceInput.kt`    | Speech-to-text (the "ears") |
-| `Speaker.kt`       | Text-to-speech (the "mouth") |
-| `CommandRouter.kt` | **Offline brain** — add more local commands here |
-| `GeminiClient.kt`  | **Cloud brain** — Gemini REST call |
-| `AssistantBrain.kt`| Decides offline-vs-cloud |
+| `MainActivity.kt`   | Compose UI + wiring: orb, screens, wake intents, follow-ups, splash |
+| `VoiceInput.kt`     | Speech-to-text (the "ears") |
+| `Speaker.kt`        | Text-to-speech (the "mouth") |
+| `WakeService.kt`    | Offline "Naomi" wake word + follow-up listening |
+| `CommandRouter.kt`  | **Offline brain** + all device actions — add more commands here |
+| `GroqClient.kt`     | **Cloud brain** — intent parsing + chat |
+| `LocalBrain.kt`     | **Offline LLM** fallback (Gemma) |
+| `AssistantBrain.kt` | Orchestrates router ↔ cloud ↔ offline, and multi-turn follow-ups |
 
 ---
 
@@ -67,21 +76,23 @@ buildFeatures {
 }
 ```
 
-### 5. Add your Gemini API key (never hard-code it)
-Get a free key at https://aistudio.google.com → "Get API key".
+### 5. Add your API keys (never hard-code them)
+- **Groq** (primary cloud brain) — free key at https://console.groq.com → "API Keys".
+- **Gemini** (optional fallback) — free key at https://aistudio.google.com → "Get API key".
 
-In the project root `local.properties` (this file is git-ignored — keep it private):
+In the project root `local.properties` (git-ignored — keep it private):
 ```
-GEMINI_API_KEY=your_key_here
+GROQ_API_KEY=your_groq_key_here
+GEMINI_API_KEY=your_gemini_key_here
 ```
 
-Expose it to the app — in `app/build.gradle.kts`, inside `android { defaultConfig { } }`:
+Expose them to the app — in `app/build.gradle.kts`, inside `android { defaultConfig { } }`:
 ```kotlin
-val geminiKey = project.rootProject.file("local.properties").let { f ->
-    if (f.exists()) java.util.Properties().apply { load(f.inputStream()) }
-        .getProperty("GEMINI_API_KEY", "") else ""
+val props = project.rootProject.file("local.properties").let { f ->
+    if (f.exists()) java.util.Properties().apply { load(f.inputStream()) } else java.util.Properties()
 }
-buildConfigField("String", "GEMINI_API_KEY", "\"$geminiKey\"")
+buildConfigField("String", "GROQ_API_KEY",   "\"${props.getProperty("GROQ_API_KEY", "")}\"")
+buildConfigField("String", "GEMINI_API_KEY", "\"${props.getProperty("GEMINI_API_KEY", "")}\"")
 ```
 
 ### 6. Run
@@ -94,9 +105,17 @@ Grant the microphone prompt, tap **Talk**, and try:
 
 ---
 
-## Roadmap (next increments)
-1. **"Hey Naomi" wake word** — Porcupine or openWakeWord, so you don't tap.
-2. **Fully-offline STT** — Vosk (the engine Dicio uses) instead of SpeechRecognizer.
-3. **Offline cloud-quality brain** — Gemini Nano via AICore / ML Kit GenAI.
-4. **More actions** — calendar, messages, music, smart home (add handlers to `CommandRouter`).
-5. **Background/always-listening service** — foreground service + notification.
+## Status
+
+Shipped since the first slice:
+- ✅ **"Naomi" wake word** — offline via Vosk, launches from lock/background.
+- ✅ **Background always-listening** — `WakeService` foreground mic service.
+- ✅ **Many more actions** — calls, WhatsApp voice/video calls, messages, music, maps, rides,
+  food, notes, email, torch, Wi-Fi/Bluetooth, calendar (all in `CommandRouter`).
+- ✅ **Multi-turn conversations** — a question reopens the mic; answers route through Groq with context.
+- ✅ **On-device brain** — Gemma 3 1B via MediaPipe for an offline fallback.
+
+Roadmap:
+1. **Per-voice wake** — finish tuning speaker verification (`SpeakerVerifier` / `VoiceEnrollment`).
+2. **Bigger on-device model** — Phi-3.5 / newer Gemma once it fits the 2 GB task limit.
+3. **True WhatsApp auto-send** — via the accessibility service, beyond pre-filled chats.
